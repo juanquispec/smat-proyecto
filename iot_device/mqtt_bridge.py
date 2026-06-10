@@ -4,30 +4,25 @@ import json
 import time
 import threading
 
-# CONFIGURACIÓN SMAT
 BROKER = "broker.hivemq.com"
 TOPIC = "fisi/smat/estaciones/#"
 
-# Configuración del Backend HTTP
 API_BASE_URL = "http://127.0.0.1:8000"
 API_URL = f"{API_BASE_URL}/lecturas/"
 
-# --- CONFIGURACIÓN DE AUTENTICACIÓN AUTOMÁTICA ---
-# Cambia "/token" o "/login" según cómo se llame el endpoint en tu FastAPI
 LOGIN_URL = f"{API_BASE_URL}/token" 
-API_USER = "tu_usuario"       # Reemplaza con un usuario válido en tu BD
-API_PASSWORD = "tu_password"  # Reemplaza con la contraseña de ese usuario
+API_USER = "tu_usuario"       
+API_PASSWORD = "tu_password"  
 
-# Variables globales
+
 last_seen = {}
-auth_token = None # Aquí se guardará el token generado
+auth_token = None 
 
 def obtener_token():
     """Función que se loguea en FastAPI para obtener el JWT dinámicamente."""
     global auth_token
     print("🔐 Autenticando con el Backend para generar Token JWT...")
     
-    # FastAPI con OAuth2 espera datos de formulario (x-www-form-urlencoded)
     credenciales = {
         "username": API_USER,
         "password": API_PASSWORD
@@ -43,7 +38,6 @@ def obtener_token():
     except Exception as e:
         print(f"❌ No se pudo conectar al Backend para el Login: {e}")
 
-# Hilo para monitorear estaciones caídas (Lógica de Resiliencia)
 def check_deadlines():
     while True:
         current_time = time.time()
@@ -61,7 +55,17 @@ def on_message(client, userdata, msg):
         payload = json.loads(msg.payload.decode())
         print(f"\n📥 Mensaje recibido en {msg.topic}: {payload}")
         
-        estacion_id = msg.topic.split('/')[-1]
+        partes_topico = msg.topic.split('/')
+        
+        estacion_id = None
+        for parte in partes_topico:
+            if parte.isdigit():
+                estacion_id = parte
+                break
+
+        if not estacion_id:
+            print(f"⚠️ No se pudo encontrar un ID numérico en el tópico: {msg.topic}")
+            return
         last_seen[estacion_id] = time.time()
         
         data_to_send = {
@@ -69,13 +73,11 @@ def on_message(client, userdata, msg):
             "estacion_id": int(estacion_id)
         }
         
-        # Enviar usando el token generado automáticamente
         headers = {"Authorization": f"Bearer {auth_token}"}
         response = requests.post(API_URL, json=data_to_send, headers=headers)
         
         if response.status_code in [200, 201]:
             print(f"✅ Dato persistido en DB para estación {estacion_id}")
-        # Si el token expiró (ej: status 401), intentamos renovarlo
         elif response.status_code == 401:
             print("🔄 El token expiró. Renovando...")
             obtener_token()
@@ -86,13 +88,11 @@ def on_message(client, userdata, msg):
         print(f"❌ Error procesando mensaje: {e}")
 
 def main():
-    # 1. Autenticarse ANTES de escuchar MQTT
+
     obtener_token()
     
-    # 2. Lanzar el hilo de monitoreo en segundo plano
     threading.Thread(target=check_deadlines, daemon=True).start()
-    
-    # 3. Configuración del Cliente MQTT
+
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
     client.on_message = on_message
     
