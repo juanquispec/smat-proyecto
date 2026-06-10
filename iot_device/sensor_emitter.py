@@ -4,9 +4,7 @@ import random
 
 API_URL = "http://127.0.0.1:8000/lecturas/"
 TOKEN_URL = "http://127.0.0.1:8000/token"
-
 ESTACION_ID = 1 
-
 def obtener_token():
     try:
         respuesta = requests.post(TOKEN_URL, json={"username": "admin", "password": "admin"})
