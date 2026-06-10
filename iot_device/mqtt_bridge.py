@@ -6,7 +6,6 @@ import threading
 
 BROKER = "broker.hivemq.com"
 TOPIC = "fisi/smat/estaciones/#"
-
 API_BASE_URL = "http://127.0.0.1:8000"
 API_URL = f"{API_BASE_URL}/lecturas/"
 
